@@ -465,7 +465,7 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     
     # Chis2-values:
     if ("chisq"%in%stat){
-      # Get location of chi values or ΔG in text:
+      # Get location of chi values or delta G in text:
       chi2Loc <- gregexpr("((\\[CHI\\]|\\[DELTA\\]G)\\s?|(\\s[^tr ]\\s?)|(.2\\s?))2?\\(\\s?\\d*\\.?\\d+\\s?(,\\s?N\\s?\\=\\s?\\d*\\,?\\d*\\,?\\d+\\s?)?\\)\\s?[<>=]\\s?\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]ns)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",txt,ignore.case=TRUE)[[1]]
       
       if (chi2Loc[1] != -1){
@@ -811,20 +811,38 @@ for(i in seq_len(nrow(Res))){
     lowP  <- pf(upper[i],Res[i,]$df1,Res[i,]$df2,lower.tail=FALSE)
     
   } else if(Res[i,]$Statistic=="t"){
-    upP <- pt(-1*abs(lower[i]),Res[i,]$df2)*2
-    lowP  <- pt(-1*abs(upper[i]),Res[i,]$df2)*2
+    
+    if(lower[i]<0){
+      lowP <- pt(lower[i],Res[i,]$df2)*2
+      upP  <- pt(upper[i],Res[i,]$df2)*2
+    } else{
+      upP <- pt(-1*lower[i],Res[i,]$df2)*2
+      lowP  <- pt(-1*upper[i],Res[i,]$df2)*2
+    }
     
   } else if(Res[i,]$Statistic=="Chi2"){
     upP <- pchisq(lower[i],Res[i,]$df1,lower.tail=FALSE)
     lowP  <- pchisq(upper[i],Res[i,]$df1,lower.tail=FALSE)
     
   } else if(Res[i,]$Statistic=="r"){
-    upP <- pmin(pt(-1*abs(r2t(lower[i],Res[i,]$df2)),Res[i,]$df2)*2,1)
-    lowP  <- pmin(pt(-1*abs(r2t(upper[i],Res[i,]$df2)),Res[i,]$df2)*2,1)
+    
+    if(lower[i]<0){
+      lowP <- pmin(pt(r2t(lower[i],Res[i,]$df2),Res[i,]$df2)*2,1)
+      upP  <- pmin(pt(r2t(upper[i],Res[i,]$df2),Res[i,]$df2)*2,1)
+    } else {
+      upP <- pmin(pt(-1*r2t(lower[i],Res[i,]$df2),Res[i,]$df2)*2,1)
+      lowP  <- pmin(pt(-1*r2t(upper[i],Res[i,]$df2),Res[i,]$df2)*2,1)
+    }
     
   } else if(Res[i,]$Statistic=="Z"|Res[i,]$Statistic=="z"){
-    upP <- pnorm(abs(lower[i]),lower.tail=FALSE)*2
-    lowP  <- pnorm(abs(upper[i]),lower.tail=FALSE)*2
+    
+    if(lower[i]<0){
+      lowP <- pnorm(abs(lower[i]),lower.tail=FALSE)*2
+      upP  <- pnorm(abs(upper[i]),lower.tail=FALSE)*2
+    } else {
+      upP <- pnorm(lower[i],lower.tail=FALSE)*2
+      lowP  <- pnorm(upper[i],lower.tail=FALSE)*2
+    }
     
   } 
   
