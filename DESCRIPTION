@@ -1,17 +1,18 @@
 Package: statcheck
 Type: Package
-Title: Extract Statistics from Articles and Recompute P Values
-Version: 1.0.1
-Date: 2015-02-04
+Title: Extract Statistics from Articles and Recompute p Values
+Version: 1.2.2
+Date: 2016-08-18
 Author: Sacha Epskamp <mail@sachaepskamp.com> & Michele B. Nuijten
     <m.b.nuijten@uvt.nl>
 Maintainer: Michele B. Nuijten <m.b.nuijten@uvt.nl>
-Depends: R (>= 2.14.2), plyr
+Depends: R (>= 2.14.2)
+Imports: plyr, ggplot2
 Description: Extract statistics from articles and recompute p values.
 License: GPL-2
 LazyLoad: yes
 ByteCompile: yes
 NeedsCompilation: no
-Packaged: 2015-02-04 16:55:50 UTC; mnuijten
+Packaged: 2016-08-18 07:44:34 UTC; mnuijten
 Repository: CRAN
-Date/Publication: 2015-02-04 18:52:06
+Date/Publication: 2016-08-18 10:02:24

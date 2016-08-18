@@ -10,6 +10,8 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
   ### Assumed level of significance in the scanned texts. Defaults to .05. 
   pEqualAlphaSig=TRUE,
   ### Logical. If TRUE, statcheck counts p <= alpha as significant (default), if FALSE, statcheck counts p < alpha as significant
+  pZeroError=TRUE,
+  ### Logical. If TRUE, statcheck counts p=.000 as an error (because a p-value is never exactly zero, and should be reported as < .001), if FALSE, statcheck does not count p=.000 automatically as an error.
   OneTailedTxt=FALSE,
   ### Logical. If TRUE, statcheck searches the text for "one-sided", "one-tailed", and "directional" to identify the possible use of one-sided tests. If one or more of these strings is found in the text AND the result would have been correct if it was a one-sided test, the result is assumed to be indeed one-sided and is counted as correct.
   AllPValues=FALSE
@@ -54,7 +56,7 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     
     #---------------------------
     
-    # extract all p values in order to calculate the ratio statcheck results/total # of p values
+    # extract all p values in order to calculate the ratio (statcheck results)/(total # of p values)
     
     # p-values
     # Get location of p-values in text:
@@ -101,7 +103,7 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     
     # search for "one-sided"/"one-tailed"/"directional" in full text to detect one-sided testing
     
-    #     onesided <- gregexpr("sided|tailed|directional",txt,ignore.case=TRUE)[[1]]
+    # onesided <- gregexpr("sided|tailed|directional",txt,ignore.case=TRUE)[[1]]
     onesided <- gregexpr("one.?sided|one.?tailed|directional",txt,ignore.case=TRUE)[[1]]
     
     if(onesided[1] != -1){
@@ -159,7 +161,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1),
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1))
         
-        
         # Extract p-values
         suppressWarnings(
           pValsChar <- substring(tRaw,sapply(nums,'[',3),sapply(nums,function(x)x[3]+attr(x,"match.length")[3]-1)))
@@ -204,11 +205,16 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     # F-values:
     if ("F"%in%stat){
       # Get location of F-values in text:
-      FLoc <- gregexpr("F\\s?\\(\\s?\\d*\\.?\\d+\\s?,\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]ns)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",txt,ignore.case=TRUE)[[1]]
+      # also pick up degrees of freedom wrongly converted into letters:
+      # 1 --> l or I
+      FLoc <- gregexpr("F\\s?\\(\\s?\\d*\\.?(I|l|\\d+)\\s?,\\s?\\d*\\.?\\d+\\s?\\)\\s?[<>=]\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]ns)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",txt,ignore.case=TRUE)[[1]]
       
       if (FLoc[1] != -1){
         # Get raw text of F-values:
         FRaw <- substring(txt,FLoc,FLoc+attr(FLoc,"match.length")-1)
+        
+        # convert wrongly printed "l" or "I" into 1
+        FRaw <- gsub("l|I",1,FRaw)
         
         # Extract location of numbers:
         nums <- gregexpr("(\\d*\\.?\\d+\\s?e?-?\\d*)|ns",FRaw,ignore.case=TRUE)
@@ -246,7 +252,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
         testEq <- substring(FRaw,
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1),
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1))
-        
         
         # Extract p-values
         suppressWarnings(
@@ -288,7 +293,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
         rm(FRes)
       }
     }
-    
     
     # correlations:
     if (any(c("r","cor","correlations")%in%stat)){
@@ -333,7 +337,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1),
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1))
         
-        
         # Extract p-values
         suppressWarnings(
           pValsChar <- substring(rRaw,sapply(nums,'[',3),sapply(nums,function(x)x[3]+attr(x,"match.length")[3]-1)))
@@ -353,6 +356,10 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
         dec <- attr(regexpr("\\.\\d+",pValsChar),"match.length")-1
         dec[dec<0] <- 0
         
+        # computed p = NA for correlations reported as >1 
+        pComputed <- pmin(pt(-1*abs(r2t(rVals,df)),df)*2,1)
+        pComputed[is.nan(pComputed)] <- NA
+        
         # Create data frame:
         rRes <- data.frame(Source = names(x)[i], 
                            Statistic="r", 
@@ -362,7 +369,7 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
                            Value = rVals, 
                            Reported.Comparison= pEq, 
                            Reported.P.Value=pVals, 
-                           Computed = pmin(pt(-1*abs(r2t(rVals,df)),df)*2,1), 
+                           Computed = pComputed, 
                            Location = rLoc,
                            Raw = rRaw,
                            stringsAsFactors=FALSE,
@@ -421,7 +428,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1),
                             sapply(testEqLoc,function(x)x[1]+attr(x,"match.length")[1]-1))
         
-        
         # Extract p-values
         suppressWarnings(
           pValsChar <- substring(zRaw,sapply(nums,'[',2),sapply(nums,function(x)x[2]+attr(x,"match.length")[2]-1)))
@@ -466,7 +472,7 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     # Chis2-values:
     if ("chisq"%in%stat){
       # Get location of chi values or delta G in text:
-      chi2Loc <- gregexpr("((\\[CHI\\]|\\[DELTA\\]G)\\s?|(\\s[^tr ]\\s?)|(.2\\s?))2?\\(\\s?\\d*\\.?\\d+\\s?(,\\s?N\\s?\\=\\s?\\d*\\,?\\d*\\,?\\d+\\s?)?\\)\\s?[<>=]\\s?\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]ns)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",txt,ignore.case=TRUE)[[1]]
+      chi2Loc <- gregexpr("((\\[CHI\\]|\\[DELTA\\]G)\\s?|(\\s[^trF ]\\s?)|([^trF]2\\s?))2?\\(\\s?\\d*\\.?\\d+\\s?(,\\s?N\\s?\\=\\s?\\d*\\,?\\d*\\,?\\d+\\s?)?\\)\\s?[<>=]\\s?\\s?\\d*,?\\d*\\.?\\d+\\s?,\\s?(([^a-z]ns)|(p\\s?[<>=]\\s?\\d?\\.\\d+e?-?\\d*))",txt,ignore.case=TRUE)[[1]]
       
       if (chi2Loc[1] != -1){
         # Get raw text of chi2-values:
@@ -480,6 +486,11 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
         
         # remove commas (thousands separators)
         chi2Raw <- gsub("(?<=\\d),(?=\\d+\\.)","",chi2Raw,perl=TRUE)
+        
+        # bug fix: remove extra opening brackets 
+        # if a chi2 result is reported between brackets, and the chi is not read by statcheck
+        # the opening bracket is translated as the chi symbol, and extracting the numerics goes wrong
+        chi2Raw <- gsub("\\((?=2\\s?\\()","",chi2Raw,perl=TRUE)
         
         # Extract location of numbers:
         nums <- gregexpr("(\\-?\\s?\\d*\\.?\\d+\\s?e?-?\\d*)|ns",sub("^.*?\\(","",chi2Raw),ignore.case=TRUE)
@@ -557,7 +568,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     # remove p values greater than one
     Res <- Res[Res$Reported.P.Value<=1|is.na(Res$Reported.P.Value),]
   }
-  
   
   ###---------------------------------------------------------------------
   
@@ -658,8 +668,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     greatsmall <- testcomp==">" & comparison=="<"
     greatgreat <- testcomp==">" & comparison==">"
     
-    
-    
     AllTests <- grepl("=|<|>",comparison)
     
     if (any(AllTests)){
@@ -678,7 +686,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
         AllTests[greatequal] <- reported[greatequal]>alpha & computed[greatequal]<=alpha
         AllTests[greatgreat] <- reported[greatgreat]>=alpha & computed[greatgreat]<=alpha
         
-        
       } else {
         
         AllTests[equalequal] <- (reported[equalequal]<alpha & computed[equalequal]>=alpha)|
@@ -695,7 +702,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
         
       }
       
-      
       # these combinations of < & > are logically always correct
       AllTests[smallgreat] <- FALSE
       AllTests[greatsmall] <- FALSE
@@ -705,7 +711,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     AllTests <- as.logical(AllTests)
     
     #-----------------------------------------------
-    
     
     return(AllTests)
   }
@@ -725,20 +730,20 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
     Res$DecisionError <-  DecisionErrorTest(Res)  
     
     ###---------------------------------------------------------------------
-    
+
     # check if there would also be a decision error if alpha=.01 or .1
     DecisionErrorAlphas <- logical()
     alphas <- c(.01,.1)
-    
+
     for(a in alphas){
       alpha <- a
       DecisionErrorAlphas <- c(DecisionErrorAlphas, DecisionErrorTest(Res))
     }
-    
-    if(any(DecisionErrorAlphas)){
-      cat("\n Check the significance level. \n \n Some of the p value incongruencies are decision errors if the significance level is .1 or .01 instead of the conventional .05. It is recommended to check the actual significance level in the paper or text. Check if the reported p values are a decision error at a different significance level by running statcheck again with 'alpha' set to .1 and/or .01. \n ",fill=TRUE)
+
+    if(any(DecisionErrorAlphas[!is.na(DecisionErrorAlphas) & !is.nan(DecisionErrorAlphas)])){
+      message("\n Check the significance level. \n \n Some of the p value incongruencies are decision errors if the significance level is .1 or .01 instead of the conventional .05. It is recommended to check the actual significance level in the paper or text. Check if the reported p values are a decision error at a different significance level by running statcheck again with 'alpha' set to .1 and/or .01. \n ")
     }
-    
+
     ###---------------------------------------------------------------------
     
     if(OneTailedTests==FALSE){
@@ -757,8 +762,8 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
                         TRUE,FALSE)
       Res$OneTail <- OneTail
       
-      if(any(OneTail==TRUE & OneTailedTxt==FALSE)){
-        cat("\n Check for one tailed tests. \n \n Some of the p value incongruencies might in fact be one tailed tests. It is recommended to check this in the actual paper or text. Check if the p values would also be incongruent if the test is indeed one sided by running statcheck again with 'OneTailedTests' set to TRUE. To see which Sources probably contain a one tailed test, try unique(x$Source[x$OneTail]) (where x is the statcheck output). \n ",fill=TRUE)
+      if(any(OneTail[!is.na(OneTail)]==TRUE & OneTailedTxt[!is.na(OneTailedTxt)]==FALSE)){
+        message("\n Check for one tailed tests. \n \n Some of the p value incongruencies might in fact be one tailed tests. It is recommended to check this in the actual paper or text. Check if the p values would also be incongruent if the test is indeed one sided by running statcheck again with 'OneTailedTests' set to TRUE. To see which Sources probably contain a one tailed test, try unique(x$Source[x$OneTail]) (where x is the statcheck output). \n ")
       }
       
     }
@@ -781,19 +786,6 @@ statcheck <- structure(function(# Extract statistics and recompute p-values.
       
 
     }
-
-###---------------------------------------------------------------------
-
-# copy paste errors
-# same string of results elsewhere in article?
-CopyPaste <- numeric()
-for (i in 1:length(Res$Raw)){
-  Res_new <- Res[-i,]
-  CopyPaste[i] <- Res$Raw[i]%in%Res_new$Raw[Res_new$Source==Res_new$Source[i]]
-}
-CopyPaste <- as.logical(CopyPaste)
-
-Res$CopyPaste <- CopyPaste
 
 ###---------------------------------------------------------------------
 
@@ -871,7 +863,13 @@ CorrectRound <- as.logical(correct_round)
 ###---------------------------------------------------------------------
 
 # p values smaller or equal to zero are errors
-ImpossibleP <- (Res$Reported.P.Value<=0)
+
+if(pZeroError==TRUE){
+  ImpossibleP <- (Res$Reported.P.Value<=0)
+} else {
+  ImpossibleP <- (Res$Reported.P.Value<0)
+}
+
 Res$Error[ImpossibleP] <- TRUE
 
 ###---------------------------------------------------------------------
@@ -919,7 +917,6 @@ Res <- data.frame(Source = Res$Source,
                   DecisionError = Res$DecisionError,
                   OneTail = Res$OneTail,
                   OneTailedInTxt = Res$OneTailedInTxt,
-                  CopyPaste = Res$CopyPaste,
                   APAfactor = Res$APAfactor
 )
 
@@ -960,7 +957,7 @@ if(AllPValues==FALSE){
 ### \item{DecisionError}{The reported result is significant whereas the recomputed result is not, or vice versa.}
 ### \item{OneTail}{Logical. Is it likely that the reported p value resulted from a correction for one-sided testing?}
 ### \item{OneTailedInTxt}{Logical. Does the text contain the string "sided", "tailed", and/or "directional"?}
-### \item{CopyPaste}{Logical. Does the exact string of the extracted raw results occur anywhere else in the article?}
+### \item{APAfactor}{What proportion of all detected p-values was part of a fully APA reported result?}
 
 },ex=function(){
   txt <- "blablabla the effect was very significant (t(100)=1, p < 0.001)"
